@@ -194,12 +194,35 @@ impl Game {
             for r in self.rocks.iter_mut() {
                 r.draw(&context, graphics);
             }
+            for i in 0..self.shipcount {
+                let xpos = 500.0 + 15.0 * (i as f64);
+                let mut remaining_ship = Ship {
+                    pos: TDVec {
+                        //x: 10.0 + 20.0*(i as f64),
+                        x: xpos,
+                        y: 15.0,
+                    },
+                    vel: TDVec {
+                        x: 0.0,
+                        y: 0.0,
+                    },
+                    dir: PI,
+                    fire: false,
+                    thrust_a: 0.0,
+                    rotate_a: 0.0,
+                };
+                remaining_ship.draw(&context, graphics);
+            }
         });
+
+
+
+
         win.draw_2d(&event, |c, g, device| {
             let transform = c.transform.trans(540.0, 18.0);
 
             // clear([0.0, 0.0, 0.0, 1.0], g);
-            let scoretext = format!("Score: {} {}", self.score, self.shipcount);
+            let scoretext = format!("Score: {}", self.score);
             text::Text::new_color([0.2, 0.2, 0.2, 1.0], 12).draw(
                 &scoretext,
                 glyphs,
