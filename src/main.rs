@@ -216,8 +216,6 @@ impl Game {
         });
 
 
-
-
         win.draw_2d(&event, |c, g, device| {
             let transform = c.transform.trans(540.0, 18.0);
 
@@ -231,6 +229,32 @@ impl Game {
             ).unwrap();
             glyphs.factory.encoder.flush(device);
         });
+
+        if !self.playing() {
+            win.draw_2d(&event, |c, g, device| {
+                let transform = c.transform.trans(250.0, 200.0);
+
+                // clear([0.0, 0.0, 0.0, 1.0], g);
+                let gameovertext = format!("Game Over");
+                text::Text::new_color([1.0, 0.0, 0.0, 1.0], 22).draw(
+                    &gameovertext,
+                    glyphs,
+                    &c.draw_state,
+                    transform, g,
+                ).unwrap();
+
+                let transform = c.transform.trans(250.0, 230.0);
+                let text = format!("Press S to start");
+                text::Text::new_color([0.2, 0.0, 1.0, 1.0], 22).draw(
+                    &text,
+                    glyphs,
+                    &c.draw_state,
+                    transform, g,
+                ).unwrap();
+
+                glyphs.factory.encoder.flush(device);
+            });
+        }
     }
 
     fn shoot(&mut self) {
@@ -250,28 +274,39 @@ impl Game {
         })
     }
 
-    fn update(&mut self) {
-        self.ship.update();
-        for m in self.missiles.iter_mut() {
-            m.update();
-        }
-        for r in self.rocks.iter_mut() {
-            r.update();
-        }
-        self.missiles.retain(|m| m.steps < 100);
+    fn playing(&mut self) -> bool {
+        return self.shipcount > 0;
+    }
 
-        let mut pos = 0;
-        while pos < self.rocks.len() {
-            if self.rocks[pos].is_hit(&self.missiles) {
-                self.rocks.swap_remove(pos);
-            } else {
-                pos += 1;
+    fn update(&mut self) {
+        if self.playing() {
+            self.ship.update();
+            for m in self.missiles.iter_mut() {
+                m.update();
+            }
+            for r in self.rocks.iter_mut() {
+                r.update();
+            }
+            self.missiles.retain(|m| m.steps < 100);
+
+            let mut pos = 0;
+            while pos < self.rocks.len() {
+                if self.rocks[pos].is_hit(&self.missiles) {
+                    self.rocks.swap_remove(pos);
+                } else {
+                    pos += 1;
+                }
+            }
+
+            if self.ship.hits(&self.rocks) {
+                self.shipcount -= 1;
             }
         }
+    }
 
-        if self.ship.hits(&self.rocks) {
-            self.shipcount -= 1;
-        }
+    fn restart(&mut self) {
+        init_game_state(&mut *self);
+
     }
 
     fn input(&mut self, inp: &Input) {
@@ -283,6 +318,7 @@ impl Game {
                     Button::Keyboard(Key::Left) => self.ship.rotate(0.1),
                     Button::Keyboard(Key::Right) => self.ship.rotate(-0.1),
                     Button::Keyboard(Key::Space) => self.shoot(),
+                    Button::Keyboard(Key::S) => self.restart(),
                     _ => (),
                 },
                 ButtonState::Release => match but.button {
@@ -333,6 +369,41 @@ fn main() {
         score: 0,
         shipcount: 3,
     };
+    init_game_state(&mut game);
+
+    // the main event loop
+    let mut events = Events::new(EventSettings::new()).ups(30);
+    while let Some(event) = events.next(&mut window) {
+        match event {
+            Event::Loop(Loop::Update(ref _upd)) => game.update(),
+            Event::Loop(Loop::Render(ref _ren)) => game.draw(&mut window, event, &mut glyphs),
+            Event::Input(ref inp, _) => game.input(inp),
+            _ => {}
+        }
+    }
+}
+
+fn init_game_state(game: &mut Game) {
+    game.ship = Ship {
+        pos: TDVec {
+            x: 30.0,
+            y: 30.0,
+        },
+        vel: TDVec {
+            x: 0.0,
+            y: 0.0,
+        },
+        dir: PI,
+        fire: false,
+        thrust_a: 0.0,
+        rotate_a: 0.0,
+    };
+
+    game.missiles = Vec::new();
+    game.rocks = Vec::new();
+    game.score = 0;
+    game.shipcount = 3;
+
     let mut rng = rand::thread_rng();
     for _i in 0..10 {
         game.rocks.push(Rock {
@@ -346,16 +417,5 @@ fn main() {
             },
             r: 10.0,
         });
-    }
-
-    // the main event loop
-    let mut events = Events::new(EventSettings::new()).ups(30);
-    while let Some(event) = events.next(&mut window) {
-        match event {
-            Event::Loop(Loop::Update(ref _upd)) => game.update(),
-            Event::Loop(Loop::Render(ref _ren)) => game.draw(&mut window, event, &mut glyphs),
-            Event::Input(ref inp, _) => game.input(inp),
-            _ => {}
-        }
     }
 }
