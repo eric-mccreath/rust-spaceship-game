@@ -10,7 +10,13 @@ use piston_window::*;
 use std::f64::consts::PI;
 use rand::Rng;
 
+const XDIM: f64 = 640.0;
+const YDIM: f64 = 480.0;
+
+
+
 //  TDVec - a simple 2d vector class.  There is probably something more standard I could use!!
+#[derive(Clone)]
 pub struct TDVec {
     x: f64,
     y: f64,
@@ -24,10 +30,10 @@ impl TDVec {
         }
     }
     fn wrapppos(&mut self) {
-        if self.x < 0.0 { self.x += 640.0; }
-        if self.x >= 640.0 { self.x -= 640.0; }
-        if self.y < 0.0 { self.y += 480.0; }
-        if self.y >= 480.0 { self.y -= 480.0; }
+        if self.x < 0.0 { self.x += XDIM; }
+        if self.x >= XDIM { self.x -= XDIM; }
+        if self.y < 0.0 { self.y += YDIM; }
+        if self.y >= YDIM { self.y -= YDIM; }
     }
 
     fn distance(&self, v2: &TDVec) -> f64 {
@@ -62,6 +68,7 @@ impl Missile {
 
 
 // Rock - a floating asteroid
+#[derive(Clone)]
 pub struct Rock {
     pos: TDVec,
     vel: TDVec,
@@ -74,13 +81,14 @@ impl Rock {
         self.pos.wrapppos();
     }
 
-    fn is_hit(&self, missiles: &Vec<Missile>) -> bool {
-        for m in missiles.iter() {
-            if m.pos.distance(&self.pos) < self.r {
-                return true;
+    fn is_hit(&self, missiles: &Vec<Missile>) -> i32 {
+
+        for i in 0..missiles.len() {
+            if missiles[i].pos.distance(&self.pos) < self.r {
+                return i as i32;
             }
         }
-        return false;
+        return -1;
     }
 
     fn draw(&mut self, context: &Context, graphics: &mut G2d) {
@@ -195,10 +203,9 @@ impl Game {
                 r.draw(&context, graphics);
             }
             for i in 0..self.shipcount {
-                let xpos = 500.0 + 15.0 * (i as f64);
+                let xpos = XDIM - 140.0 + 15.0 * (i as f64);
                 let mut remaining_ship = Ship {
                     pos: TDVec {
-                        //x: 10.0 + 20.0*(i as f64),
                         x: xpos,
                         y: 15.0,
                     },
@@ -217,7 +224,7 @@ impl Game {
 
 
         win.draw_2d(&event, |c, g, device| {
-            let transform = c.transform.trans(540.0, 18.0);
+            let transform = c.transform.trans(XDIM -100.0, 18.0);
 
             // clear([0.0, 0.0, 0.0, 1.0], g);
             let scoretext = format!("Score: {}", self.score);
@@ -291,14 +298,49 @@ impl Game {
 
             let mut pos = 0;
             while pos < self.rocks.len() {
-                if self.rocks[pos].is_hit(&self.missiles) {
+                let mhit = self.rocks[pos].is_hit(&self.missiles);
+                if mhit >= 0 {
+                    self.missiles.swap_remove(mhit as usize);
+                    let removed = self.rocks[pos].clone();
                     self.rocks.swap_remove(pos);
+                    self.score += 1;
+                    if removed.r > 5.0 {
+                        self.rocks.push(Rock {
+                            pos: TDVec {
+                                x: removed.pos.x,
+                                y: removed.pos.y,
+                            },
+                            vel: TDVec {
+                                x: removed.vel.y,
+                                y: -removed.vel.x,
+                            },
+                            r: removed.r/2.0,
+                        });
+                        self.rocks.push(Rock {
+                            pos: TDVec {
+                                x: removed.pos.x,
+                                y: removed.pos.y,
+                            },
+                            vel: TDVec {
+                                x: removed.vel.x,
+                                y: removed.vel.y,
+                            },
+                            r: removed.r/2.0,
+                        });
+                    }
+                    if self.rocks.len() == 0 {
+                        addrocks(self);
+                    }
                 } else {
                     pos += 1;
                 }
             }
 
             if self.ship.hits(&self.rocks) {
+                self.ship.pos.x = XDIM/2.0;
+                self.ship.pos.y = YDIM/2.0;
+                self.ship.vel.x = 0.0;
+                self.ship.vel.y = 0.0;
                 self.shipcount -= 1;
             }
         }
@@ -338,7 +380,7 @@ impl Game {
 fn main() {
     // set up the window
     let mut window: PistonWindow =
-        WindowSettings::new("Rust SpaceShip Game", [640, 480])
+        WindowSettings::new("Rust SpaceShip Game", [XDIM as u32, YDIM as u32])
             .exit_on_esc(true).build().unwrap();
     let assets = find_folder::Search::ParentsThenKids(3, 3)
         .for_folder("assets").unwrap();
@@ -386,8 +428,8 @@ fn main() {
 fn init_game_state(game: &mut Game) {
     game.ship = Ship {
         pos: TDVec {
-            x: 30.0,
-            y: 30.0,
+            x: 320.0,
+            y: 240.0,
         },
         vel: TDVec {
             x: 0.0,
@@ -404,6 +446,10 @@ fn init_game_state(game: &mut Game) {
     game.score = 0;
     game.shipcount = 3;
 
+    addrocks(game);
+}
+
+fn addrocks(game: &mut Game) -> () {
     let mut rng = rand::thread_rng();
     for _i in 0..10 {
         game.rocks.push(Rock {
@@ -415,7 +461,7 @@ fn init_game_state(game: &mut Game) {
                 x: rng.gen_range(-1.5..1.5),
                 y: rng.gen_range(-1.5..1.5),
             },
-            r: 10.0,
+            r: 16.0,
         });
     }
 }
